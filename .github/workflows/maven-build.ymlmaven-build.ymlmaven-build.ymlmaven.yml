@@ -4,20 +4,38 @@
 # They are provided by a third-party and are governed by
 # separate terms of service, privacy policy, and support
 # documentation.
-
 name: Maven Build
-
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=30s
+          --health-timeout=10s
+          --health-retries=5
+    
+    env:
+      SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/test
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.MySQL8Dialect
+    
     steps:
     - uses: actions/checkout@v4
     - name: Set up JDK 21
@@ -26,6 +44,13 @@ jobs:
         java-version: '21'
         distribution: 'temurin'
         cache: maven
+    - name: Wait for MySQL
+      run: |
+        while ! mysqladmin ping -h"localhost" -P"3306" -u"root" -p"root" --silent; do
+          echo "Waiting for MySQL..."
+          sleep 2
+        done
+        echo "MySQL is ready!"
     - name: Build with Maven
       run: mvn -B package --file pom.xml
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
