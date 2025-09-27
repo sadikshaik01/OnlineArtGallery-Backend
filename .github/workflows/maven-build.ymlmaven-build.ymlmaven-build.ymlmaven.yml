@@ -44,15 +44,30 @@ jobs:
         java-version: '21'
         distribution: 'temurin'
         cache: maven
-    - name: Wait for MySQL
+    
+    - name: Install MySQL client
+      run: sudo apt-get update && sudo apt-get install -y mysql-client
+    
+    - name: Wait for MySQL to be ready
       run: |
-        while ! mysqladmin ping -h"localhost" -P"3306" -u"root" -p"root" --silent; do
-          echo "Waiting for MySQL..."
+        for i in {1..60}; do
+          if mysql -h 127.0.0.1 -P 3306 -u root -proot -e "SELECT 1" >/dev/null 2>&1; then
+            echo "MySQL is ready!"
+            break
+          fi
+          echo "Waiting for MySQL... ($i/60)"
           sleep 2
         done
-        echo "MySQL is ready!"
+        
+        # Final check
+        mysql -h 127.0.0.1 -P 3306 -u root -proot -e "SELECT 1" || {
+          echo "Failed to connect to MySQL after 120 seconds"
+          exit 1
+        }
+    
     - name: Build with Maven
       run: mvn -B package --file pom.xml
+    
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
     - name: Update dependency graph
       uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
